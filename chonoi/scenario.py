@@ -1,8 +1,7 @@
 """Nạp và kiểm scenario (Contract D). Trả về dict của đúng khối theo mode.
 
-KHUNG: kiểm cú pháp, id trùng, bộ đếm âm, khoang vượt sức chứa, trường lạ.
-TODO(nhóm): bổ sung kiểm mâu thuẫn mức luật mà nhóm cần (khách giữ chỗ quá kho, đơn assigned
-phải có đúng một món, khách eating thiếu giá/tip...) — xem PRD-0 mục D và 'Mâu thuẫn -> mã 2'.
+Kiểm cú pháp và miền tọa độ tại đây. Mâu thuẫn đơn, món và phần giữ chỗ
+được kiểm khi dựng QuanSim, trước khi tạo file đầu ra.
 """
 
 import json
@@ -146,6 +145,8 @@ def _validate_quan(b, tuning):
             _check_ids(arr, b[arr])
     if "stock" in b:
         validate_items(b["stock"])
+    if "random_customers" in b and not isinstance(b["random_customers"], bool):
+        raise BadInput("random_customers phải là boolean")
     p = b.get("player", {})
     if not isinstance(p, dict) or set(p) - QUAN_PLAYER_KEYS:
         raise BadInput("quan.player chỉ có pos và vel")
@@ -154,6 +155,16 @@ def _validate_quan(b, tuning):
         _pos("player.pos", p["pos"], qb, axes=("x", "z"))
     if "vel" in p and not (isinstance(p["vel"], list) and len(p["vel"]) == 2 and all(_num(c) for c in p["vel"])):
         raise BadInput("player.vel phải là [x, z]")
+    for stove in b.get("stoves", []):
+        if set(stove) - {"id", "pos", "state", "dish", "cook_ticks_left", "ready_ticks"}:
+            raise BadInput(f"stoves.{stove['id']}: trường chưa hỗ trợ")
+        if "pos" in stove:
+            _pos(f"stoves.{stove['id']}.pos", stove["pos"], qb, axes=("x", "z"))
+    for table in b.get("tables", []):
+        if set(table) - {"id", "pos"}:
+            raise BadInput(f"tables.{table['id']}: trường chưa hỗ trợ")
+        if "pos" in table:
+            _pos(f"tables.{table['id']}.pos", table["pos"], qb, axes=("x", "z"))
     table_ids = [c.get("table_id") for c in b.get("customers", [])]
     known = {t["id"] for t in tuning["quan"]["tables"]} | {t.get("id") for t in b.get("tables", [])}
     for c in b.get("customers", []):
